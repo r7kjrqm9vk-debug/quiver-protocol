@@ -3,929 +3,688 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HERMES — Ratio Market</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<title>Quiver Protocol — Stock Ratio Market</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
 <style>
   :root {
-    --bg: #080a0f;
-    --surface: #0d1117;
-    --surface2: #131921;
-    --border: rgba(255,255,255,0.06);
+    --bg: #060809;
+    --surface: #0c1014;
+    --surface2: #111820;
+    --border: rgba(200,255,0,0.08);
+    --border2: rgba(255,255,255,0.05);
     --accent: #c8ff00;
     --accent2: #00ffd1;
-    --text: #e8eaed;
-    --muted: #6b7280;
-    --red: #ff4d4d;
+    --accent-dim: rgba(200,255,0,0.12);
+    --text: #e8edf2;
+    --muted: #5a6472;
+    --red: #ff4444;
     --green: #c8ff00;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* Grid background */
+  body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; }
   body::before {
     content: '';
     position: fixed;
     inset: 0;
-    background-image:
-      linear-gradient(rgba(200,255,0,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(200,255,0,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-image: linear-gradient(rgba(200,255,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(200,255,0,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
     pointer-events: none;
     z-index: 0;
+    animation: gridShift 20s linear infinite;
   }
-
-  /* Glow orbs */
-  .orb {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(120px);
-    pointer-events: none;
-    z-index: 0;
-  }
-  .orb1 {
-    width: 400px; height: 400px;
-    background: rgba(200,255,0,0.07);
-    top: -100px; left: -100px;
-  }
-  .orb2 {
-    width: 300px; height: 300px;
-    background: rgba(0,255,209,0.05);
-    bottom: 100px; right: -50px;
-  }
-
-  /* NAV */
+  @keyframes gridShift { from { transform: translateY(0); } to { transform: translateY(48px); } }
+  .orb { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0; }
+  .orb1 { width: 500px; height: 500px; background: rgba(200,255,0,0.05); top: -200px; left: -100px; }
+  .orb2 { width: 300px; height: 300px; background: rgba(0,255,209,0.04); bottom: 0; right: -100px; }
   nav {
     position: relative; z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
     border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(16px);
+    background: rgba(6,8,9,0.8);
   }
-
-  .logo {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 20px;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-  }
-  .logo span { color: var(--text); opacity: 0.5; }
-
-  .nav-tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--surface2);
-    border-radius: 8px;
-    padding: 4px;
-    border: 1px solid var(--border);
-  }
-  .nav-tab {
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--muted);
-    transition: all 0.2s;
-    letter-spacing: 0.05em;
-  }
-  .nav-tab.active {
-    background: var(--accent);
-    color: #000;
-    font-weight: 700;
-  }
-  .nav-tab:hover:not(.active) { color: var(--text); }
-
-  .wallet-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 20px;
-    border-radius: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.05em;
-  }
-  .wallet-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  /* MAIN LAYOUT */
-  .main {
-    position: relative; z-index: 1;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 40px;
-  }
-
-  /* PAGE HEADER */
-  .page-header {
-    margin-bottom: 40px;
-    animation: fadeUp 0.6s ease both;
-  }
-  .page-header h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
-  }
-  .page-header h1 em {
-    font-style: normal;
-    color: var(--accent);
-  }
-  .page-header p {
-    color: var(--muted);
-    font-size: 13px;
-    letter-spacing: 0.02em;
-  }
-
-  /* STATS BAR */
-  .stats-bar {
-    display: flex;
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 40px;
-    animation: fadeUp 0.6s 0.1s ease both;
-  }
-  .stat-item {
-    flex: 1;
-    padding: 20px 24px;
-    background: var(--surface);
-  }
-  .stat-label {
-    font-size: 10px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .stat-value {
-    font-family: 'Syne', sans-serif;
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .stat-value.accent { color: var(--accent); }
-  .stat-sub {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 4px;
-  }
-
-  /* LAYOUT GRID */
-  .layout {
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 24px;
-    animation: fadeUp 0.6s 0.2s ease both;
-  }
-
-  /* POOLS TABLE */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-  }
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border);
-  }
-  .card-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .badge {
-    font-size: 10px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 600;
-  }
-  .badge-accent { background: rgba(200,255,0,0.15); color: var(--accent); }
-  .badge-muted { background: rgba(255,255,255,0.05); color: var(--muted); }
-
-  /* POOL ROWS */
-  .pool-row {
-    display: grid;
-    grid-template-columns: 200px 1fr 120px 120px 100px;
-    align-items: center;
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.15s;
-    gap: 16px;
-  }
-  .pool-row:last-child { border-bottom: none; }
-  .pool-row:hover { background: rgba(255,255,255,0.02); }
-
-  .pool-col-header {
-    font-size: 10px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  .pool-header-row {
-    display: grid;
-    grid-template-columns: 200px 1fr 120px 120px 100px;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-    gap: 16px;
-  }
-
-  .pair-name {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .token-icons {
-    display: flex;
-    position: relative;
-  }
-  .token-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid var(--bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    font-family: 'Syne', sans-serif;
-  }
-  .token-icon:nth-child(2) { margin-left: -8px; }
-  .ti-tsla { background: #1a1a2e; color: #e50914; }
-  .ti-amd { background: #1a0a2e; color: #ed1c24; }
-  .ti-amzn { background: #0a1a2e; color: #ff9900; }
-  .ti-nflx { background: #2e0a0a; color: #e50914; }
-  .ti-pltr { background: #0a2e1a; color: #2d6a4f; }
-
-  .pair-label {
-    font-family: 'Syne', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-  }
-  .pair-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
-  /* RATIO BAR */
-  .ratio-container { display: flex; flex-direction: column; gap: 4px; }
-  .ratio-bar-wrap {
-    height: 4px;
-    background: rgba(255,255,255,0.06);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .ratio-bar {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
-  .ratio-text {
-    font-size: 11px;
-    color: var(--text);
-  }
-  .ratio-text span { color: var(--muted); }
-
-  .pool-value {
-    font-size: 13px;
-    font-weight: 500;
-  }
-  .pool-change {
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
+  .logo { display: flex; align-items: center; gap: 12px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: 0.08em; color: var(--accent); }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent-dim); border: 1px solid rgba(200,255,0,0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo span { color: rgba(255,255,255,0.3); font-weight: 400; }
+  .nav-tabs { display: flex; gap: 2px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 3px; }
+  .nav-tab { padding: 7px 18px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted); transition: all 0.2s; letter-spacing: 0.06em; text-transform: uppercase; }
+  .nav-tab.active { background: var(--accent); color: #000; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .chain-pill { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 6px 14px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; }
+  .chain-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .connect-btn { background: var(--accent); color: #000; border: none; padding: 8px 20px; border-radius: 8px; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.06em; transition: all 0.2s; }
+  .connect-btn:hover { background: #d4ff1a; }
+  .connect-btn.connected { background: var(--surface2); color: var(--accent); border: 1px solid rgba(200,255,0,0.3); }
+  .ticker { position: relative; z-index: 1; border-bottom: 1px solid var(--border); overflow: hidden; padding: 10px 0; background: rgba(6,8,9,0.6); }
+  .ticker-track { display: flex; gap: 60px; animation: scroll 25s linear infinite; width: max-content; }
+  .ticker-item { display: flex; align-items: center; gap: 12px; font-size: 11px; white-space: nowrap; }
+  .ticker-pair { color: var(--muted); letter-spacing: 0.06em; }
+  .ticker-val { font-weight: 600; }
   .up { color: var(--green); }
-  .down { color: var(--red); }
-
-  .add-btn {
-    background: rgba(200,255,0,0.1);
-    border: 1px solid rgba(200,255,0,0.2);
-    color: var(--accent);
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.05em;
-  }
-  .add-btn:hover {
-    background: rgba(200,255,0,0.2);
-    border-color: var(--accent);
-  }
-
-  /* RIGHT PANEL — SWAP */
-  .swap-panel { display: flex; flex-direction: column; gap: 16px; }
-
-  .swap-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-  }
-
-  .swap-body { padding: 20px; }
-
-  .swap-input-wrap {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 8px;
-    transition: border-color 0.2s;
-  }
-  .swap-input-wrap:focus-within { border-color: rgba(200,255,0,0.3); }
-
-  .swap-input-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  .swap-label { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
-  .swap-balance { font-size: 10px; color: var(--muted); }
-  .swap-balance span { color: var(--accent); cursor: pointer; }
-
-  .swap-input-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .swap-amount {
-    background: none;
-    border: none;
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    font-size: 24px;
-    font-weight: 700;
-    width: 100%;
-    outline: none;
-  }
-  .swap-amount::placeholder { color: rgba(255,255,255,0.15); }
-
-  .token-select {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 0.2s;
-  }
-  .token-select:hover { border-color: rgba(200,255,0,0.3); }
-  .token-select-name {
-    font-family: 'Syne', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-  }
-  .token-select-arrow { color: var(--muted); font-size: 10px; }
-
-  .swap-arrow-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px; height: 36px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 50%;
-    margin: 0 auto;
-    cursor: pointer;
-    font-size: 16px;
-    transition: all 0.2s;
-    color: var(--muted);
-    position: relative;
-    z-index: 1;
-  }
-  .swap-arrow-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    transform: rotate(180deg);
-  }
-
-  .swap-details {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin: 12px 0;
-  }
-  .swap-detail-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-  .swap-detail-row:last-child { margin-bottom: 0; }
-  .swap-detail-row span:last-child { color: var(--text); }
-  .swap-detail-row .accent { color: var(--accent); }
-
-  .swap-btn {
-    width: 100%;
-    padding: 16px;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    border-radius: 12px;
-    font-family: 'Syne', sans-serif;
-    font-size: 15px;
-    font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: all 0.2s;
-  }
-  .swap-btn:hover {
-    background: #d4ff1a;
-    transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(200,255,0,0.3);
-  }
-
-  /* MY POSITIONS */
-  .position-row {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .position-row:last-child { border-bottom: none; }
-  .position-pair {
-    font-family: 'Syne', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-  }
-  .position-shares { font-size: 11px; color: var(--muted); margin-top: 3px; }
-  .position-value { text-align: right; }
-  .position-amount { font-size: 13px; font-weight: 500; }
-  .position-pnl { font-size: 11px; margin-top: 3px; }
-
-  /* ROBINHOOD CHAIN BADGE */
-  .chain-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--muted);
-    padding: 6px 12px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-  }
-  .chain-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: pulse 2s infinite;
-  }
-
-  /* ANIMATIONS */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  /* TICKER TAPE */
-  .ticker {
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    overflow: hidden;
-    padding: 10px 0;
-    margin-bottom: 40px;
-    position: relative;
-    z-index: 1;
-  }
-  .ticker-inner {
-    display: flex;
-    gap: 48px;
-    animation: ticker 20s linear infinite;
-    width: max-content;
-  }
-  .ticker-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .ticker-pair { color: var(--muted); letter-spacing: 0.05em; }
-  .ticker-ratio { font-weight: 600; color: var(--text); }
-  .ticker-change { font-size: 11px; }
-  @keyframes ticker {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-  }
-
-  /* TABS inside swap */
-  .swap-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-  }
-  .swap-tab {
-    flex: 1;
-    padding: 14px;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    cursor: pointer;
-    color: var(--muted);
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-  }
-  .swap-tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-  }
-
-  .footnote {
-    font-size: 10px;
-    color: var(--muted);
-    text-align: center;
-    margin-top: 40px;
-    letter-spacing: 0.05em;
-    opacity: 0.5;
-    position: relative; z-index: 1;
-  }
+  .dn { color: var(--red); }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 36px 40px; padding-bottom: 60px; }
+  .hero { display: grid; grid-template-columns: 1fr auto; align-items: center; margin-bottom: 32px; gap: 32px; animation: fadeUp 0.5s ease both; }
+  .hero-title { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+  .hero-title em { font-style: normal; color: var(--accent); }
+  .hero-sub { font-size: 12px; color: var(--muted); margin-top: 8px; letter-spacing: 0.03em; max-width: 500px; line-height: 1.6; }
+  .faucet-box { background: linear-gradient(135deg, rgba(200,255,0,0.08), rgba(200,255,0,0.03)); border: 1px solid rgba(200,255,0,0.2); border-radius: 16px; padding: 20px 24px; min-width: 260px; text-align: center; }
+  .faucet-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .faucet-amount { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+  .faucet-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .faucet-btn { width: 100%; padding: 12px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: 0.06em; transition: all 0.2s; }
+  .faucet-btn:hover { background: #d4ff1a; transform: translateY(-1px); }
+  .faucet-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .faucet-cooldown { font-size: 10px; color: var(--muted); margin-top: 8px; }
+  .stats-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border2); border: 1px solid var(--border2); border-radius: 14px; overflow: hidden; margin-bottom: 32px; animation: fadeUp 0.5s 0.1s ease both; }
+  .stat { background: var(--surface); padding: 18px 20px; }
+  .stat-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; animation: fadeUp 0.5s 0.2s ease both; }
+  .card { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; overflow: hidden; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border2); }
+  .card-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .badge { font-size: 10px; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+  .badge-green { background: rgba(200,255,0,0.12); color: var(--accent); }
+  .badge-dim { background: rgba(255,255,255,0.05); color: var(--muted); }
+  .pool-header { display: grid; grid-template-columns: 200px 1fr 130px 150px 110px; padding: 10px 22px; border-bottom: 1px solid var(--border2); gap: 12px; }
+  .pool-col { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .pool-row { display: grid; grid-template-columns: 200px 1fr 130px 150px 110px; align-items: center; padding: 16px 22px; border-bottom: 1px solid var(--border2); cursor: pointer; transition: background 0.15s; gap: 12px; }
+  .pool-row:last-child { border-bottom: none; }
+  .pool-row:hover { background: rgba(200,255,0,0.03); }
+  .pair { display: flex; align-items: center; gap: 10px; }
+  .token-stack { display: flex; position: relative; }
+  .tok { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; font-family: 'Syne', sans-serif; }
+  .tok:nth-child(2) { margin-left: -8px; }
+  .tok-tsla { background: #1a0a0a; color: #ff6b6b; }
+  .tok-amd { background: #1a0a1a; color: #ed1c24; }
+  .tok-amzn { background: #0a1a1a; color: #ff9900; }
+  .tok-nflx { background: #1a0a0a; color: #e50914; }
+  .tok-pltr { background: #0a1a0a; color: #4ade80; }
+  .pair-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+  .pair-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .ratio-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .ratio-text { font-size: 12px; }
+  .ratio-text span { color: var(--muted); }
+  .ratio-bar-bg { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+  .ratio-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; }
+  .pool-tvl { font-size: 12px; font-weight: 500; }
+  .add-btn { background: var(--accent-dim); border: 1px solid rgba(200,255,0,0.2); color: var(--accent); padding: 6px 14px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+  .add-btn:hover { background: rgba(200,255,0,0.2); }
+  .right-panel { display: flex; flex-direction: column; gap: 16px; }
+  .swap-tabs { display: flex; border-bottom: 1px solid var(--border2); }
+  .swap-tab { flex: 1; padding: 14px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .swap-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .swap-body { padding: 18px; }
+  .input-box { background: var(--surface2); border: 1px solid var(--border2); border-radius: 12px; padding: 14px 16px; margin-bottom: 6px; transition: border-color 0.2s; }
+  .input-box:focus-within { border-color: rgba(200,255,0,0.25); }
+  .input-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .input-lbl { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .input-bal { font-size: 10px; color: var(--muted); }
+  .input-bal span { color: var(--accent); cursor: pointer; }
+  .input-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .amount-input { background: none; border: none; color: var(--text); font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; width: 100%; outline: none; }
+  .amount-input::placeholder { color: rgba(255,255,255,0.1); }
+  .token-picker { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 10px; cursor: pointer; white-space: nowrap; transition: border-color 0.2s; }
+  .token-picker:hover { border-color: rgba(200,255,0,0.2); }
+  .picker-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; }
+  .picker-arrow { color: var(--muted); font-size: 9px; }
+  .swap-arrow { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 50%; margin: 0 auto; cursor: pointer; font-size: 14px; color: var(--muted); transition: all 0.3s; position: relative; z-index: 1; }
+  .swap-arrow:hover { border-color: var(--accent); color: var(--accent); transform: rotate(180deg); }
+  .swap-details { background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  .detail-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .detail-row:last-child { margin-bottom: 0; }
+  .detail-row span:last-child { color: var(--text); }
+  .detail-row .acc { color: var(--accent); }
+  .detail-row .warn { color: #f59e0b; }
+  .qvr-cost { display: flex; align-items: center; justify-content: space-between; background: rgba(200,255,0,0.06); border: 1px solid rgba(200,255,0,0.12); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 11px; }
+  .qvr-cost-label { color: var(--muted); }
+  .qvr-cost-val { color: var(--accent); font-weight: 600; }
+  .swap-btn { width: 100%; padding: 14px; background: var(--accent); color: #000; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.2s; }
+  .swap-btn:hover { background: #d4ff1a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(200,255,0,0.3); }
+  .qvr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border2); }
+  .qvr-stat { background: var(--surface); padding: 16px 18px; }
+  .qvr-stat-label { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .qvr-stat-value { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+  .qvr-stat-value.fire { color: var(--accent); }
+  .users-body { padding: 18px; }
+  .users-count { font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800; color: var(--accent); line-height: 1; margin-bottom: 4px; }
+  .users-label { font-size: 12px; color: var(--muted); }
+  .users-bar { margin-top: 16px; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+  .users-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; width: 0%; transition: width 1s ease; }
+  .tx-body { padding: 0; max-height: 180px; overflow-y: auto; }
+  .tx-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-bottom: 1px solid var(--border2); font-size: 11px; }
+  .tx-item:last-child { border-bottom: none; }
+  .tx-type { color: var(--muted); flex: 1; }
+  .tx-hash { color: var(--accent); cursor: pointer; margin: 0 8px; }
+  .tx-hash:hover { text-decoration: underline; }
+  .tx-time { color: var(--muted); font-size: 10px; }
+  .status-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: rgba(6,8,9,0.95); border-top: 1px solid var(--border); padding: 8px 40px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--muted); letter-spacing: 0.05em; backdrop-filter: blur(10px); }
+  .status-left { display: flex; gap: 24px; }
+  .status-item { display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .toast { position: fixed; bottom: 60px; right: 24px; z-index: 200; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; font-size: 12px; max-width: 320px; display: none; animation: fadeUp 0.3s ease; }
+  .toast.show { display: block; }
+  .toast.success { border-color: rgba(200,255,0,0.3); }
+  .toast.error { border-color: rgba(255,68,68,0.3); }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 150; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; width: 420px; animation: fadeUp 0.3s ease; }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .modal-close { float: right; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  .modal-input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px; outline: none; margin-bottom: 12px; }
+  .modal-input:focus { border-color: rgba(200,255,0,0.3); }
+  .modal-btn { width: 100%; padding: 14px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: 0.06em; }
 </style>
 </head>
 <body>
-
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
 
-<!-- NAV -->
 <nav>
-  <div class="logo">HERMES <span>// RATIO MARKET</span></div>
+  <div class="logo">
+    <div class="logo-icon">🏹</div>
+    QUIVER <span>// RATIO MARKET</span>
+  </div>
   <div class="nav-tabs">
     <div class="nav-tab active">Pools</div>
     <div class="nav-tab">Swap</div>
     <div class="nav-tab">Portfolio</div>
   </div>
-  <div style="display:flex;align-items:center;gap:12px;">
-    <div class="chain-badge">
-      <div class="chain-dot"></div>
-      Robinhood Chain
-    </div>
-    <button class="wallet-btn">Connect Wallet</button>
+  <div class="nav-right">
+    <div class="chain-pill"><div class="chain-dot"></div>Robinhood Chain</div>
+    <button class="connect-btn" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
   </div>
 </nav>
 
-<!-- TICKER -->
 <div class="ticker">
-  <div class="ticker-inner">
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/AMD</span>
-      <span class="ticker-ratio">2.318</span>
-      <span class="ticker-change up">+1.2%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/AMZN</span>
-      <span class="ticker-ratio">0.847</span>
-      <span class="ticker-change down">-0.4%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">AMZN/NFLX</span>
-      <span class="ticker-ratio">3.621</span>
-      <span class="ticker-change up">+2.8%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">AMD/PLTR</span>
-      <span class="ticker-ratio">1.094</span>
-      <span class="ticker-change up">+0.6%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/NFLX</span>
-      <span class="ticker-ratio">3.066</span>
-      <span class="ticker-change down">-1.1%</span>
-    </div>
-    <!-- duplicated for seamless loop -->
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/AMD</span>
-      <span class="ticker-ratio">2.318</span>
-      <span class="ticker-change up">+1.2%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/AMZN</span>
-      <span class="ticker-ratio">0.847</span>
-      <span class="ticker-change down">-0.4%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">AMZN/NFLX</span>
-      <span class="ticker-ratio">3.621</span>
-      <span class="ticker-change up">+2.8%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">AMD/PLTR</span>
-      <span class="ticker-ratio">1.094</span>
-      <span class="ticker-change up">+0.6%</span>
-    </div>
-    <div class="ticker-item">
-      <span class="ticker-pair">TSLA/NFLX</span>
-      <span class="ticker-ratio">3.066</span>
-      <span class="ticker-change down">-1.1%</span>
-    </div>
+  <div class="ticker-track">
+    <div class="ticker-item"><span class="ticker-pair">AMD/TSLA</span><span class="ticker-val" id="t0">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">AMZN/TSLA</span><span class="ticker-val" id="t1">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">NFLX/AMZN</span><span class="ticker-val" id="t2">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">PLTR/AMD</span><span class="ticker-val" id="t3">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">NFLX/TSLA</span><span class="ticker-val" id="t4">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">🔥 $QVR BURNED</span><span class="ticker-val up" id="tBurned">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">👥 USERS</span><span class="ticker-val" id="tUsers">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">AMD/TSLA</span><span class="ticker-val" id="t0b">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">AMZN/TSLA</span><span class="ticker-val" id="t1b">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">NFLX/AMZN</span><span class="ticker-val" id="t2b">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">PLTR/AMD</span><span class="ticker-val" id="t3b">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">NFLX/TSLA</span><span class="ticker-val" id="t4b">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">🔥 $QVR BURNED</span><span class="ticker-val up" id="tBurnedb">—</span></div>
+    <div class="ticker-item"><span class="ticker-pair">👥 USERS</span><span class="ticker-val" id="tUsersb">—</span></div>
   </div>
 </div>
 
-<!-- MAIN -->
 <div class="main">
-
-  <div class="page-header">
-    <h1>Stock <em>Ratio</em> Pools</h1>
-    <p>The first permissionless market for stock-to-stock ratios — powered by HERMES Protocol on Robinhood Chain</p>
+  <div class="hero">
+    <div>
+      <div class="hero-title">Stock <em>Ratio</em> Pools</div>
+      <div class="hero-sub">The first permissionless AMM for stock-to-stock ratios on Robinhood Chain. Swap tokenized equities directly — no USD, no stablecoins. Oracle-anchored by real Finnhub market prices.</div>
+    </div>
+    <div class="faucet-box">
+      <div class="faucet-label">Quiver Faucet</div>
+      <div class="faucet-amount">100 QVR</div>
+      <div class="faucet-sub">every 24 hours · free</div>
+      <button class="faucet-btn" id="faucetBtn" onclick="claimFaucet()">Claim $QVR</button>
+      <div class="faucet-cooldown" id="faucetCooldown"></div>
+    </div>
   </div>
 
-  <!-- STATS -->
   <div class="stats-bar">
-    <div class="stat-item">
-      <div class="stat-label">Total Liquidity</div>
-      <div class="stat-value accent">$0.00</div>
-      <div class="stat-sub">across 5 pools</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">24h Volume</div>
-      <div class="stat-value">$0.00</div>
-      <div class="stat-sub">testnet only</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Active Pools</div>
-      <div class="stat-value">5</div>
-      <div class="stat-sub">stock pairs</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Protocol Fee</div>
-      <div class="stat-value">0.3%</div>
-      <div class="stat-sub">per swap</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">Network</div>
-      <div class="stat-value" style="font-size:14px;">Robin Chain</div>
-      <div class="stat-sub">Arbitrum Orbit</div>
-    </div>
+    <div class="stat"><div class="stat-label">Active Pools</div><div class="stat-value accent">5</div><div class="stat-sub">stock pairs</div></div>
+    <div class="stat"><div class="stat-label">Unique Users</div><div class="stat-value" id="statUsers">—</div><div class="stat-sub">wallets</div></div>
+    <div class="stat"><div class="stat-label">$QVR Burned</div><div class="stat-value accent" id="statBurned">—</div><div class="stat-sub">to 0xdEaD</div></div>
+    <div class="stat"><div class="stat-label">Your $QVR</div><div class="stat-value" id="statQvr">—</div><div class="stat-sub">in wallet</div></div>
+    <div class="stat"><div class="stat-label">Protocol Fee</div><div class="stat-value">0.3%</div><div class="stat-sub">0.15% burn · 0.15% pool</div></div>
   </div>
 
-  <!-- LAYOUT -->
   <div class="layout">
-
-    <!-- LEFT: POOLS -->
     <div>
       <div class="card">
         <div class="card-header">
           <div class="card-title">All Pools</div>
-          <div class="badge badge-accent">5 Active</div>
+          <div class="badge badge-green">5 Live · Robinhood Chain</div>
         </div>
-
-        <div class="pool-header-row">
-          <div class="pool-col-header">Pair</div>
-          <div class="pool-col-header">Ratio</div>
-          <div class="pool-col-header">Liquidity</div>
-          <div class="pool-col-header">24h Change</div>
-          <div class="pool-col-header"></div>
+        <div class="pool-header">
+          <div class="pool-col">Pair</div>
+          <div class="pool-col">Oracle Ratio</div>
+          <div class="pool-col">Pool Ratio</div>
+          <div class="pool-col">Status</div>
+          <div class="pool-col"></div>
         </div>
-
-        <!-- Pool rows -->
-        <div class="pool-row">
-          <div class="pair-name">
-            <div class="token-icons">
-              <div class="token-icon ti-tsla">TSLA</div>
-              <div class="token-icon ti-amd">AMD</div>
-            </div>
-            <div>
-              <div class="pair-label">TSLA / AMD</div>
-              <div class="pair-sub">Tesla · AMD</div>
-            </div>
-          </div>
-          <div class="ratio-container">
-            <div class="ratio-text">1 TSLA = <span>2.318</span> AMD</div>
-            <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:62%"></div></div>
-          </div>
-          <div class="pool-value">—</div>
-          <div class="pool-change up">↑ +1.24%</div>
-          <button class="add-btn">+ Add</button>
-        </div>
-
-        <div class="pool-row">
-          <div class="pair-name">
-            <div class="token-icons">
-              <div class="token-icon ti-tsla">TSLA</div>
-              <div class="token-icon ti-amzn">AMZN</div>
-            </div>
-            <div>
-              <div class="pair-label">TSLA / AMZN</div>
-              <div class="pair-sub">Tesla · Amazon</div>
-            </div>
-          </div>
-          <div class="ratio-container">
-            <div class="ratio-text">1 TSLA = <span>0.847</span> AMZN</div>
-            <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:35%"></div></div>
-          </div>
-          <div class="pool-value">—</div>
-          <div class="pool-change down">↓ -0.41%</div>
-          <button class="add-btn">+ Add</button>
-        </div>
-
-        <div class="pool-row">
-          <div class="pair-name">
-            <div class="token-icons">
-              <div class="token-icon ti-amzn">AMZN</div>
-              <div class="token-icon ti-nflx">NFLX</div>
-            </div>
-            <div>
-              <div class="pair-label">AMZN / NFLX</div>
-              <div class="pair-sub">Amazon · Netflix</div>
-            </div>
-          </div>
-          <div class="ratio-container">
-            <div class="ratio-text">1 AMZN = <span>3.621</span> NFLX</div>
-            <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:78%"></div></div>
-          </div>
-          <div class="pool-value">—</div>
-          <div class="pool-change up">↑ +2.83%</div>
-          <button class="add-btn">+ Add</button>
-        </div>
-
-        <div class="pool-row">
-          <div class="pair-name">
-            <div class="token-icons">
-              <div class="token-icon ti-amd">AMD</div>
-              <div class="token-icon ti-pltr">PLTR</div>
-            </div>
-            <div>
-              <div class="pair-label">AMD / PLTR</div>
-              <div class="pair-sub">AMD · Palantir</div>
-            </div>
-          </div>
-          <div class="ratio-container">
-            <div class="ratio-text">1 AMD = <span>1.094</span> PLTR</div>
-            <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:50%"></div></div>
-          </div>
-          <div class="pool-value">—</div>
-          <div class="pool-change up">↑ +0.61%</div>
-          <button class="add-btn">+ Add</button>
-        </div>
-
-        <div class="pool-row">
-          <div class="pair-name">
-            <div class="token-icons">
-              <div class="token-icon ti-tsla">TSLA</div>
-              <div class="token-icon ti-nflx">NFLX</div>
-            </div>
-            <div>
-              <div class="pair-label">TSLA / NFLX</div>
-              <div class="pair-sub">Tesla · Netflix</div>
-            </div>
-          </div>
-          <div class="ratio-container">
-            <div class="ratio-text">1 TSLA = <span>3.066</span> NFLX</div>
-            <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:70%"></div></div>
-          </div>
-          <div class="pool-value">—</div>
-          <div class="pool-change down">↓ -1.12%</div>
-          <button class="add-btn">+ Add</button>
-        </div>
-
+        <div id="poolRows"></div>
       </div>
 
-      <!-- MY POSITIONS -->
-      <div class="card" style="margin-top:20px;">
+      <div class="card" style="margin-top:16px;">
         <div class="card-header">
-          <div class="card-title">My Positions</div>
-          <div class="badge badge-muted">Connect wallet</div>
+          <div class="card-title">Recent Transactions</div>
+          <div class="badge badge-dim" id="txCount">0 txs</div>
         </div>
-        <div style="padding:40px;text-align:center;color:var(--muted);font-size:12px;letter-spacing:0.05em;">
-          Connect wallet to view your LP positions
+        <div class="tx-body" id="txLog">
+          <div class="tx-item"><span class="tx-type" style="color:var(--muted)">No transactions yet — connect wallet to start</span></div>
         </div>
       </div>
     </div>
 
-    <!-- RIGHT: SWAP PANEL -->
-    <div class="swap-panel">
-      <div class="swap-card">
-        <div class="swap-tabs">
-          <div class="swap-tab active">Swap</div>
-          <div class="swap-tab">Add Liquidity</div>
-        </div>
-
-        <div class="swap-body">
-
-          <!-- FROM -->
-          <div class="swap-input-wrap">
-            <div class="swap-input-top">
-              <div class="swap-label">You Pay</div>
-              <div class="swap-balance">Balance: <span>5.00</span></div>
-            </div>
-            <div class="swap-input-row">
-              <input class="swap-amount" type="text" placeholder="0.00" value="1.00">
-              <div class="token-select">
-                <div class="token-icon ti-tsla" style="width:22px;height:22px;font-size:7px;">T</div>
-                <span class="token-select-name">TSLA</span>
-                <span class="token-select-arrow">▾</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- ARROW -->
-          <div class="swap-arrow-btn">⇅</div>
-
-          <!-- TO -->
-          <div class="swap-input-wrap" style="margin-top:8px;">
-            <div class="swap-input-top">
-              <div class="swap-label">You Receive</div>
-              <div class="swap-balance">Balance: <span>5.00</span></div>
-            </div>
-            <div class="swap-input-row">
-              <input class="swap-amount" type="text" placeholder="0.00" value="2.303" style="color:var(--accent);">
-              <div class="token-select">
-                <div class="token-icon ti-amd" style="width:22px;height:22px;font-size:7px;">A</div>
-                <span class="token-select-name">AMD</span>
-                <span class="token-select-arrow">▾</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- DETAILS -->
-          <div class="swap-details">
-            <div class="swap-detail-row">
-              <span>Rate</span>
-              <span>1 TSLA = 2.318 AMD</span>
-            </div>
-            <div class="swap-detail-row">
-              <span>Price Impact</span>
-              <span style="color:#f59e0b;">~0.65%</span>
-            </div>
-            <div class="swap-detail-row">
-              <span>Protocol Fee</span>
-              <span>0.003 TSLA</span>
-            </div>
-            <div class="swap-detail-row">
-              <span>Min Received</span>
-              <span class="accent">2.288 AMD</span>
-            </div>
-          </div>
-
-          <button class="swap-btn">Swap Stocks</button>
-
-        </div>
-      </div>
-
-      <!-- INFO CARD -->
+    <div class="right-panel">
       <div class="card">
-        <div class="card-header">
-          <div class="card-title">About</div>
+        <div class="swap-tabs">
+          <div class="swap-tab active" onclick="setSwapTab(0)">Swap</div>
+          <div class="swap-tab" onclick="setSwapTab(1)">Add Liquidity</div>
         </div>
-        <div style="padding:20px;font-size:12px;color:var(--muted);line-height:1.8;letter-spacing:0.02em;">
-          <p style="margin-bottom:12px;">HERMES Ratio Market is the first <span style="color:var(--text);">permissionless AMM</span> for stock-to-stock ratios on Robinhood Chain.</p>
-          <p style="margin-bottom:12px;">Swap tokenized equities directly against each other — no USD, no stablecoins. Pure ratio trading.</p>
-          <p>Built with <span style="color:var(--accent);">x·y=k</span> constant product formula. 0.3% fee distributed to LPs.</p>
+        <div class="swap-body">
+          <div class="input-box">
+            <div class="input-top">
+              <div class="input-lbl">You Pay</div>
+              <div class="input-bal">Balance: <span id="balIn">—</span></div>
+            </div>
+            <div class="input-row">
+              <input class="amount-input" type="number" placeholder="0.00" id="amountIn" oninput="calcSwap()">
+              <div class="token-picker" onclick="cycleToken('in')">
+                <div class="tok tok-amd" id="tokInIcon" style="width:22px;height:22px;font-size:7px;">A</div>
+                <span class="picker-name" id="tokInName">AMD</span>
+                <span class="picker-arrow">▾</span>
+              </div>
+            </div>
+          </div>
+          <div class="swap-arrow" onclick="flipTokens()">⇅</div>
+          <div class="input-box" style="margin-top:6px;">
+            <div class="input-top">
+              <div class="input-lbl">You Receive</div>
+              <div class="input-bal">Balance: <span id="balOut">—</span></div>
+            </div>
+            <div class="input-row">
+              <input class="amount-input" type="number" placeholder="0.00" id="amountOut" readonly style="color:var(--accent)">
+              <div class="token-picker" onclick="cycleToken('out')">
+                <div class="tok tok-tsla" id="tokOutIcon" style="width:22px;height:22px;font-size:7px;">T</div>
+                <span class="picker-name" id="tokOutName">TSLA</span>
+                <span class="picker-arrow">▾</span>
+              </div>
+            </div>
+          </div>
+          <div class="swap-details">
+            <div class="detail-row"><span>Oracle Rate</span><span id="swapRate">—</span></div>
+            <div class="detail-row"><span>Price Impact</span><span class="warn" id="swapImpact">—</span></div>
+            <div class="detail-row"><span>Fee (0.3%)</span><span id="swapFee">—</span></div>
+            <div class="detail-row"><span>Min Received</span><span class="acc" id="swapMin">—</span></div>
+          </div>
+          <div class="qvr-cost">
+            <span class="qvr-cost-label">🔥 QVR Burn Cost</span>
+            <span class="qvr-cost-val">1 QVR per swap</span>
+          </div>
+          <button class="swap-btn" onclick="executeSwap()">Swap Stocks</button>
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-header"><div class="card-title">$QVR Token Stats</div><div class="badge badge-green">Live</div></div>
+        <div class="qvr-grid">
+          <div class="qvr-stat"><div class="qvr-stat-label">Total Supply</div><div class="qvr-stat-value" id="qvrSupply">—</div></div>
+          <div class="qvr-stat"><div class="qvr-stat-label">Total Burned 🔥</div><div class="qvr-stat-value fire" id="qvrBurned">—</div></div>
+          <div class="qvr-stat"><div class="qvr-stat-label">Faucet Claims</div><div class="qvr-stat-value" id="qvrClaims">—</div></div>
+          <div class="qvr-stat"><div class="qvr-stat-label">Unique Users</div><div class="qvr-stat-value fire" id="qvrUsers">—</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Community</div></div>
+        <div class="users-body">
+          <div class="users-count" id="usersCount">0</div>
+          <div class="users-label">unique wallets on Quiver Protocol</div>
+          <div class="users-bar"><div class="users-bar-fill" id="usersBarFill"></div></div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <div class="footnote">
-    HERMES PROTOCOL · ROBINHOOD CHAIN TESTNET · ALL ASSETS ARE TEST TOKENS WITH NO REAL VALUE
-  </div>
-
 </div>
 
+<div class="status-bar">
+  <div class="status-left">
+    <div class="status-item"><div class="status-dot"></div>Robinhood Chain Testnet · Chain 46630</div>
+    <div class="status-item">Oracle: 0xF2b1...3A3a</div>
+    <div class="status-item">Factory: 0x68c8...8F1</div>
+  </div>
+  <div>Quiver Protocol · First Stock-to-Stock AMM · Built on Robinhood Chain</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="liqModal">
+  <div class="modal">
+    <div class="modal-title"><span class="modal-close" onclick="closeModal()">✕</span>Add Liquidity</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;" id="modalPoolLabel">—</div>
+    <input class="modal-input" type="number" placeholder="Amount Token A" id="liqA">
+    <input class="modal-input" type="number" placeholder="Amount Token B" id="liqB">
+    <div class="qvr-cost" style="margin-bottom:16px;"><span class="qvr-cost-label">🔥 QVR Burn Cost</span><span class="qvr-cost-val">5 QVR</span></div>
+    <button class="modal-btn" onclick="executeAddLiquidity()">Add Liquidity</button>
+  </div>
+</div>
+
+<script>
+const ADDR = {
+  token:   "0xd8690c73988C593033De284A0eEeD6bCf5C1ef25",
+  faucet:  "0x67663805e59A497196CF99119934e0352Ae360d4",
+  oracle:  "0xF2b1DcB76C26ec79EB240CDBb3E0a2E0c3403A3a",
+  factory: "0x68c89b8d5B860A08a884d1A0C833Baf8F241c8F1",
+  pools: [
+    "0x0227d1e5d5AFb93A96192dB9717a80DB77D2D5E2",
+    "0x6C2fC2923f225A207F26E380cda1eceC09d4FFE7",
+    "0x8A7564CB7638767dfEB703C9050f19E1C398c325",
+    "0x6879852c5DA24993e76d8C69A4ADa942Cb76Eb89",
+    "0x5f8021925EB18B9243f8616A4547492e6c993bA2",
+  ]
+};
+
+const POOLS = [
+  { nameA:"AMD",  nameB:"TSLA", symA:"AMD",  symB:"TSLA", classA:"tok-amd",  classB:"tok-tsla", lblA:"A", lblB:"T" },
+  { nameA:"AMZN", nameB:"TSLA", symA:"AMZN", symB:"TSLA", classA:"tok-amzn", classB:"tok-tsla", lblA:"AZ",lblB:"T" },
+  { nameA:"NFLX", nameB:"AMZN", symA:"NFLX", symB:"AMZN", classA:"tok-nflx", classB:"tok-amzn", lblA:"N", lblB:"AZ"},
+  { nameA:"PLTR", nameB:"AMD",  symA:"PLTR", symB:"AMD",  classA:"tok-pltr", classB:"tok-amd",  lblA:"P", lblB:"A" },
+  { nameA:"NFLX", nameB:"TSLA", symA:"NFLX", symB:"TSLA", classA:"tok-nflx", classB:"tok-tsla", lblA:"N", lblB:"T" },
+];
+
+const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)","function totalSupply() view returns (uint256)","function totalBurned() view returns (uint256)","function approve(address,uint256) returns (bool)","function allowance(address,address) view returns (uint256)"];
+const FAUCET_ABI = ["function claim() external","function canClaim(address) view returns (bool)","function nextClaimTime(address) view returns (uint256)","function uniqueUsersCount() view returns (uint256)","function totalClaims() view returns (uint256)"];
+const ORACLE_ABI = ["function getRatio(string,string) view returns (uint256)","function getPrice(string) view returns (uint256)"];
+const FACTORY_ABI = ["function uniqueUsersCount() view returns (uint256)"];
+const POOL_ABI = ["function reserveA() view returns (uint256)","function reserveB() view returns (uint256)","function isImbalanced() view returns (bool)","function swap(address,uint256) external","function addLiquidity(uint256,uint256) external returns (uint256)","function tokenA() view returns (address)","function tokenB() view returns (address)"];
+
+const RPC = "https://rpc.testnet.chain.robinhood.com";
+let provider = new ethers.providers.JsonRpcProvider(RPC);
+let signer = null, userAddress = null, selectedPool = 0;
+let tokIn = "AMD", tokOut = "TSLA";
+let poolData = new Array(5).fill(null);
+let txHistory = [];
+
+// Build pool rows
+function buildPoolRows() {
+  const container = document.getElementById("poolRows");
+  container.innerHTML = POOLS.map((p, i) => `
+    <div class="pool-row" onclick="selectPool(${i})">
+      <div class="pair">
+        <div class="token-stack">
+          <div class="tok ${p.classA}">${p.lblA}</div>
+          <div class="tok ${p.classB}">${p.lblB}</div>
+        </div>
+        <div>
+          <div class="pair-name">${p.nameA} / ${p.nameB}</div>
+          <div class="pair-sub">${ADDR.pools[i].slice(0,6)}...${ADDR.pools[i].slice(-3)}</div>
+        </div>
+      </div>
+      <div class="ratio-wrap">
+        <div class="ratio-text" id="oracle-${i}">1 ${p.nameA} = <span>loading...</span> ${p.nameB}</div>
+        <div class="ratio-bar-bg"><div class="ratio-bar-fill" id="bar-${i}" style="width:50%"></div></div>
+      </div>
+      <div class="pool-tvl" id="poolratio-${i}">loading...</div>
+      <div id="poolstatus-${i}"><span class="badge badge-dim">Loading</span></div>
+      <button class="add-btn" onclick="event.stopPropagation();openLiquidity(${i})">+ Add</button>
+    </div>
+  `).join("");
+}
+
+async function loadTokenStats() {
+  try {
+    const token = new ethers.Contract(ADDR.token, TOKEN_ABI, provider);
+    const faucet = new ethers.Contract(ADDR.faucet, FAUCET_ABI, provider);
+    const factory = new ethers.Contract(ADDR.factory, FACTORY_ABI, provider);
+    const [supply, burned, claims, fUsers, fxUsers] = await Promise.all([
+      token.totalSupply(), token.totalBurned(), faucet.totalClaims(),
+      faucet.uniqueUsersCount(), factory.uniqueUsersCount()
+    ]);
+    const supplyN = parseFloat(ethers.utils.formatEther(supply)).toFixed(0);
+    const burnedN = parseFloat(ethers.utils.formatEther(burned)).toFixed(2);
+    const users = Math.max(parseInt(fUsers), parseInt(fxUsers));
+    document.getElementById("qvrSupply").textContent = parseInt(supplyN).toLocaleString();
+    document.getElementById("qvrBurned").textContent = parseFloat(burnedN).toLocaleString();
+    document.getElementById("qvrClaims").textContent = claims.toString();
+    document.getElementById("qvrUsers").textContent = users;
+    document.getElementById("statBurned").textContent = parseFloat(burnedN).toFixed(1);
+    document.getElementById("statUsers").textContent = users;
+    document.getElementById("usersCount").textContent = users;
+    ["tBurned","tBurnedb"].forEach(id => document.getElementById(id).textContent = burnedN + " QVR");
+    ["tUsers","tUsersb"].forEach(id => document.getElementById(id).textContent = users + " wallets");
+    setTimeout(() => document.getElementById("usersBarFill").style.width = Math.min(users, 100) + "%", 500);
+  } catch(e) { console.error("loadTokenStats:", e); }
+}
+
+async function loadPoolData() {
+  const oracle = new ethers.Contract(ADDR.oracle, ORACLE_ABI, provider);
+  for (let i = 0; i < 5; i++) {
+    try {
+      const pool = new ethers.Contract(ADDR.pools[i], POOL_ABI, provider);
+      const p = POOLS[i];
+      const [resA, resB, imb] = await Promise.all([pool.reserveA(), pool.reserveB(), pool.isImbalanced()]);
+      let oRatio = null;
+      try {
+        const r = await oracle.getRatio(p.symA, p.symB);
+        oRatio = parseFloat(ethers.utils.formatEther(r));
+      } catch(e) {}
+      const pRatio = resA.gt(0) && resB.gt(0)
+        ? parseFloat(ethers.utils.formatEther(resB)) / parseFloat(ethers.utils.formatEther(resA))
+        : null;
+      poolData[i] = { oRatio, pRatio, imb };
+      if (oRatio) {
+        document.getElementById(`oracle-${i}`).innerHTML = `1 ${p.nameA} = <span>${oRatio.toFixed(4)}</span> ${p.nameB}`;
+        const tickIds = [`t${i}`,`t${i}b`];
+        tickIds.forEach(id => document.getElementById(id).textContent = oRatio.toFixed(4));
+      }
+      if (pRatio) document.getElementById(`poolratio-${i}`).textContent = `1:${pRatio.toFixed(4)}`;
+      const statusEl = document.getElementById(`poolstatus-${i}`);
+      statusEl.innerHTML = imb
+        ? `<span class="badge" style="background:rgba(255,165,0,0.15);color:#f59e0b">⚡ Rebalancing</span>`
+        : `<span class="badge badge-green">✓ Balanced</span>`;
+    } catch(e) { console.error(`pool ${i}:`, e); }
+  }
+}
+
+async function loadUserData() {
+  if (!userAddress) return;
+  try {
+    const token = new ethers.Contract(ADDR.token, TOKEN_ABI, provider);
+    const faucet = new ethers.Contract(ADDR.faucet, FAUCET_ABI, provider);
+    const [bal, canClaim, nextTime] = await Promise.all([
+      token.balanceOf(userAddress), faucet.canClaim(userAddress), faucet.nextClaimTime(userAddress)
+    ]);
+    document.getElementById("statQvr").textContent = parseFloat(ethers.utils.formatEther(bal)).toFixed(1);
+    const btn = document.getElementById("faucetBtn");
+    const cd = document.getElementById("faucetCooldown");
+    if (canClaim) {
+      btn.disabled = false; btn.textContent = "Claim $QVR"; cd.textContent = "";
+    } else {
+      btn.disabled = true; btn.textContent = "Already claimed";
+      const diff = Math.max(0, nextTime.toNumber() * 1000 - Date.now());
+      const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
+      cd.textContent = `Next claim in ${h}h ${m}m`;
+    }
+  } catch(e) { console.error("loadUserData:", e); }
+}
+
+async function connectWallet() {
+  if (!window.ethereum) { showToast("Install MetaMask!", "error"); return; }
+  try {
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    const web3p = new ethers.providers.Web3Provider(window.ethereum);
+    try {
+      await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{chainId:"0xB646"}] });
+    } catch(e) {
+      if (e.code === 4902) await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+        chainId:"0xB646", chainName:"Robinhood Chain Testnet",
+        rpcUrls:["https://rpc.testnet.chain.robinhood.com"],
+        nativeCurrency:{name:"ETH",symbol:"ETH",decimals:18},
+        blockExplorerUrls:["https://explorer.testnet.chain.robinhood.com"]
+      }]});
+    }
+    signer = web3p.getSigner();
+    userAddress = await signer.getAddress();
+    provider = web3p;
+    const btn = document.getElementById("connectBtn");
+    btn.textContent = userAddress.slice(0,6) + "..." + userAddress.slice(-4);
+    btn.classList.add("connected");
+    showToast("✅ Connected!", "success");
+    await loadUserData();
+  } catch(e) { showToast("Failed: " + e.message.slice(0,40), "error"); }
+}
+
+async function claimFaucet() {
+  if (!signer) { showToast("Connect wallet first!", "error"); return; }
+  try {
+    const btn = document.getElementById("faucetBtn");
+    btn.textContent = "Claiming..."; btn.disabled = true;
+    const faucet = new ethers.Contract(ADDR.faucet, FAUCET_ABI, signer);
+    const tx = await faucet.claim();
+    showToast("Transaction sent... ⏳");
+    await tx.wait();
+    addTx("Claim 100 QVR", tx.hash);
+    showToast("✅ 100 QVR claimed!", "success");
+    await loadUserData(); await loadTokenStats();
+  } catch(e) {
+    showToast("Failed: " + (e.reason || e.message).slice(0,50), "error");
+    document.getElementById("faucetBtn").disabled = false;
+    document.getElementById("faucetBtn").textContent = "Claim $QVR";
+  }
+}
+
+function calcSwap() {
+  const amtIn = parseFloat(document.getElementById("amountIn").value) || 0;
+  const pd = poolData[selectedPool];
+  if (!amtIn || !pd || !pd.pRatio) { document.getElementById("amountOut").value = ""; return; }
+  const fee = amtIn * 0.003;
+  const amtOut = (amtIn - fee) * pd.pRatio;
+  document.getElementById("amountOut").value = amtOut.toFixed(6);
+  document.getElementById("swapFee").textContent = fee.toFixed(6) + " " + tokIn;
+  document.getElementById("swapMin").textContent = (amtOut * 0.995).toFixed(6) + " " + tokOut;
+  document.getElementById("swapImpact").textContent = "~" + (amtIn * 0.001).toFixed(4) + "%";
+  if (pd.oRatio) document.getElementById("swapRate").textContent = `1 ${tokIn} = ${pd.oRatio.toFixed(4)} ${tokOut}`;
+}
+
+function flipTokens() {
+  [tokIn, tokOut] = [tokOut, tokIn];
+  document.getElementById("tokInName").textContent = tokIn;
+  document.getElementById("tokOutName").textContent = tokOut;
+  const v = document.getElementById("amountOut").value;
+  document.getElementById("amountIn").value = v;
+  calcSwap();
+}
+
+function cycleToken(side) {
+  const tokens = ["AMD","TSLA","AMZN","NFLX","PLTR"];
+  if (side === "in") { tokIn = tokens[(tokens.indexOf(tokIn)+1)%tokens.length]; document.getElementById("tokInName").textContent = tokIn; }
+  else { tokOut = tokens[(tokens.indexOf(tokOut)+1)%tokens.length]; document.getElementById("tokOutName").textContent = tokOut; }
+  calcSwap();
+}
+
+function selectPool(i) {
+  selectedPool = i;
+  tokIn = POOLS[i].nameA; tokOut = POOLS[i].nameB;
+  document.getElementById("tokInName").textContent = tokIn;
+  document.getElementById("tokOutName").textContent = tokOut;
+  calcSwap();
+}
+
+function setSwapTab(i) {
+  document.querySelectorAll(".swap-tab").forEach((el,j) => el.classList.toggle("active", i===j));
+  if (i === 1) openLiquidity(selectedPool);
+}
+
+async function executeSwap() {
+  if (!signer) { showToast("Connect wallet first!", "error"); return; }
+  const amtIn = document.getElementById("amountIn").value;
+  if (!amtIn || parseFloat(amtIn) <= 0) { showToast("Enter amount", "error"); return; }
+  try {
+    const token = new ethers.Contract(ADDR.token, TOKEN_ABI, signer);
+    const pool = new ethers.Contract(ADDR.pools[selectedPool], POOL_ABI, signer);
+    const qvrAllow = await token.allowance(userAddress, ADDR.pools[selectedPool]);
+    if (qvrAllow.lt(ethers.utils.parseEther("1"))) {
+      showToast("Approving QVR...");
+      await (await token.approve(ADDR.pools[selectedPool], ethers.utils.parseEther("1000"))).wait();
+    }
+    const tokenInAddr = await pool.tokenA();
+    const stockToken = new ethers.Contract(tokenInAddr, TOKEN_ABI, signer);
+    const stockAllow = await stockToken.allowance(userAddress, ADDR.pools[selectedPool]);
+    if (stockAllow.lt(ethers.utils.parseEther(amtIn))) {
+      showToast("Approving token...");
+      await (await stockToken.approve(ADDR.pools[selectedPool], ethers.utils.parseEther("10000"))).wait();
+    }
+    showToast("Swapping... ⏳");
+    const tx = await pool.swap(tokenInAddr, ethers.utils.parseEther(amtIn));
+    await tx.wait();
+    addTx(`Swap ${amtIn} ${tokIn} → ${tokOut}`, tx.hash);
+    showToast(`✅ Swapped!`, "success");
+    await Promise.all([loadPoolData(), loadUserData(), loadTokenStats()]);
+  } catch(e) { showToast("Failed: " + (e.reason||e.message).slice(0,60), "error"); }
+}
+
+function openLiquidity(i) {
+  selectedPool = i;
+  document.getElementById("modalPoolLabel").textContent = `${POOLS[i].nameA} / ${POOLS[i].nameB} — add both tokens in ratio`;
+  document.getElementById("liqA").placeholder = `Amount ${POOLS[i].nameA}`;
+  document.getElementById("liqB").placeholder = `Amount ${POOLS[i].nameB}`;
+  document.getElementById("liqModal").classList.add("show");
+}
+function closeModal() { document.getElementById("liqModal").classList.remove("show"); }
+
+async function executeAddLiquidity() {
+  if (!signer) { showToast("Connect wallet first!", "error"); return; }
+  const amtA = document.getElementById("liqA").value;
+  const amtB = document.getElementById("liqB").value;
+  if (!amtA || !amtB) { showToast("Enter both amounts", "error"); return; }
+  try {
+    const token = new ethers.Contract(ADDR.token, TOKEN_ABI, signer);
+    const pool = new ethers.Contract(ADDR.pools[selectedPool], POOL_ABI, signer);
+    const [tA, tB] = await Promise.all([pool.tokenA(), pool.tokenB()]);
+    const qvrAllow = await token.allowance(userAddress, ADDR.pools[selectedPool]);
+    if (qvrAllow.lt(ethers.utils.parseEther("5"))) {
+      showToast("Approving QVR...");
+      await (await token.approve(ADDR.pools[selectedPool], ethers.utils.parseEther("1000"))).wait();
+    }
+    const tokA = new ethers.Contract(tA, TOKEN_ABI, signer);
+    const tokB = new ethers.Contract(tB, TOKEN_ABI, signer);
+    showToast("Approving tokens...");
+    await (await tokA.approve(ADDR.pools[selectedPool], ethers.utils.parseEther(amtA))).wait();
+    await (await tokB.approve(ADDR.pools[selectedPool], ethers.utils.parseEther(amtB))).wait();
+    showToast("Adding liquidity... ⏳");
+    const tx = await pool.addLiquidity(ethers.utils.parseEther(amtA), ethers.utils.parseEther(amtB));
+    await tx.wait();
+    closeModal();
+    addTx(`Add Liquidity ${POOLS[selectedPool].nameA}/${POOLS[selectedPool].nameB}`, tx.hash);
+    showToast("✅ Liquidity added!", "success");
+    await Promise.all([loadPoolData(), loadUserData(), loadTokenStats()]);
+  } catch(e) { showToast("Failed: " + (e.reason||e.message).slice(0,60), "error"); }
+}
+
+function addTx(type, hash) {
+  txHistory.unshift({ type, hash, time: new Date().toLocaleTimeString() });
+  if (txHistory.length > 8) txHistory.pop();
+  document.getElementById("txCount").textContent = txHistory.length + " txs";
+  document.getElementById("txLog").innerHTML = txHistory.map(tx =>
+    `<div class="tx-item">
+      <span class="tx-type">${tx.type}</span>
+      <span class="tx-hash" onclick="window.open('https://explorer.testnet.chain.robinhood.com/tx/${tx.hash}','_blank')">${tx.hash.slice(0,8)}...${tx.hash.slice(-6)}</span>
+      <span class="tx-time">${tx.time}</span>
+    </div>`
+  ).join("");
+}
+
+function showToast(msg, type="success") {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = `toast show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 4000);
+}
+
+async function init() {
+  buildPoolRows();
+  await Promise.all([loadTokenStats(), loadPoolData()]);
+  setInterval(() => Promise.all([loadTokenStats(), loadPoolData()]), 30000);
+}
+init();
+</script>
 </body>
 </html>

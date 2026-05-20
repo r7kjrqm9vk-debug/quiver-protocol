@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiver Protocol — Stock Ratio Market</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+
 <style>
   :root {
     --bg: #060809;
@@ -684,7 +684,8 @@ async function init() {
   await Promise.all([loadTokenStats(), loadPoolData()]);
   setInterval(() => Promise.all([loadTokenStats(), loadPoolData()]), 30000);
 }
-init();
+
 </script>
+<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js" onload="init()"></script>
 </body>
 </html>

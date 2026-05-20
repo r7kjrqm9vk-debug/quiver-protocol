@@ -522,9 +522,16 @@ async function connectWallet() {
         blockExplorerUrls:["https://explorer.testnet.chain.robinhood.com"]
       }]});
     }
-    signer = web3p.getSigner();
+    // Recreate provider after network switch
+    const freshProvider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = freshProvider.getSigner();
     userAddress = await signer.getAddress();
-    provider = web3p;
+    provider = freshProvider;
+
+    // Listen for network/account changes
+    window.ethereum.on("chainChanged", () => window.location.reload());
+    window.ethereum.on("accountsChanged", () => window.location.reload());
+
     const btn = document.getElementById("connectBtn");
     btn.textContent = userAddress.slice(0,6) + "..." + userAddress.slice(-4);
     btn.classList.add("connected");

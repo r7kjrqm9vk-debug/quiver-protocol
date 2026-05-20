@@ -182,6 +182,7 @@
   .modal-input:focus { border-color: rgba(200,255,0,0.3); }
   .modal-btn { width: 100%; padding: 14px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: 0.06em; }
 </style>
+<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
 </head>
 <body>
 <div class="orb orb1"></div>
@@ -685,7 +686,8 @@ async function init() {
   setInterval(() => Promise.all([loadTokenStats(), loadPoolData()]), 30000);
 }
 
+window.addEventListener("load", init);
 </script>
-<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js" onload="init()"></script>
+
 </body>
 </html>

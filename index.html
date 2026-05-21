@@ -640,10 +640,14 @@ const POOL_ABI = [
   "function isImbalanced() view returns (bool)",
   "function swap(address,uint256) external",
   "function addLiquidity(uint256,uint256) external returns (uint256)",
+  "function removeLiquidity(uint256) external returns (uint256,uint256)",
+  "function rebalance() external",
   "function tokenA() view returns (address)",
   "function tokenB() view returns (address)",
   "function symbolA() view returns (string)",
   "function symbolB() view returns (string)",
+  "function balanceOf(address) view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
 ];
 
 const RPC = "https://rpc.testnet.chain.robinhood.com/rpc";

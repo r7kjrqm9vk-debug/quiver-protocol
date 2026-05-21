@@ -572,7 +572,7 @@ const POOL_ABI = [
   "function symbolB() view returns (string)",
 ];
 
-const RPC = "https://rpc.testnet.chain.robinhood.com";
+const RPC = "https://rpc.testnet.chain.robinhood.com/rpc";
 const EXPLORER = "https://explorer.testnet.chain.robinhood.com";
 
 // ═══════════════════════════════════
@@ -769,7 +769,7 @@ async function connectWallet() {
       if (e.code === 4902) {
         await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
           chainId:"0xB646", chainName:"Robinhood Chain Testnet",
-          rpcUrls:["https://rpc.testnet.chain.robinhood.com"],
+          rpcUrls:["https://rpc.testnet.chain.robinhood.com/rpc"],
           nativeCurrency:{name:"ETH",symbol:"ETH",decimals:18},
           blockExplorerUrls:["https://explorer.testnet.chain.robinhood.com"]
         }]});

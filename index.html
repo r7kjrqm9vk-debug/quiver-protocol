@@ -618,6 +618,8 @@ const PM = [
 const TOKEN_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function totalSupply() view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
   "function totalBurned() view returns (uint256)",
   "function approve(address,uint256) returns (bool)",
   "function allowance(address,address) view returns (uint256)",
@@ -648,6 +650,8 @@ const POOL_ABI = [
   "function symbolB() view returns (string)",
   "function balanceOf(address) view returns (uint256)",
   "function totalSupply() view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
 ];
 
 const RPC = "https://rpc.testnet.chain.robinhood.com/rpc";
@@ -1210,8 +1214,9 @@ async function loadPortfolio() {
           const myA = (parseFloat(ethers.utils.formatEther(rA)) * share).toFixed(4);
           const myB = (parseFloat(ethers.utils.formatEther(rB)) * share).toFixed(4);
           const p = PM[i];
+          const sharesWei = lpBal.toString();
           html += `
-            <div class="pool-row" style="grid-template-columns:180px 1fr 1fr 120px">
+            <div class="pool-row" style="grid-template-columns:180px 1fr 1fr 1fr 140px">
               <div class="pair">
                 <div class="toks">
                   <div class="tok ${p.cA}">${p.lA}</div>
@@ -1219,12 +1224,25 @@ async function loadPortfolio() {
                 </div>
                 <div class="pair-info">
                   <div class="pair-name">${p.nA}/${p.nB}</div>
-                  <div class="pair-addr">${(share*100).toFixed(2)}% of pool</div>
+                  <div class="pair-addr">${(share*100).toFixed(3)}% of pool</div>
                 </div>
               </div>
-              <div style="font-size:12px">${myA} ${p.nA}</div>
-              <div style="font-size:12px">${myB} ${p.nB}</div>
-              <button class="add-liq-btn" onclick="openLiq(${i});setTab(0)">+ Add More</button>
+              <div>
+                <div style="font-size:12px;color:var(--text)">${myA} ${p.nA}</div>
+                <div style="font-size:10px;color:var(--muted)">token A</div>
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--text)">${myB} ${p.nB}</div>
+                <div style="font-size:10px;color:var(--muted)">token B</div>
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--lime)">${parseFloat(ethers.utils.formatEther(lpBal)).toFixed(4)}</div>
+                <div style="font-size:10px;color:var(--muted)">LP shares</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <button class="add-liq-btn" onclick="openLiq(${i});setTab(0)">+ Add</button>
+                <button class="add-liq-btn" onclick="execRemoveLiquidity(${i}, ethers.BigNumber.from('${sharesWei}'))" style="border-color:rgba(255,59,59,.3);color:var(--red);background:rgba(255,59,59,.06)">Remove</button>
+              </div>
             </div>`;
         }
       } catch(e) {}
@@ -1277,6 +1295,32 @@ async function init() {
   buildPoolRows();
   await loadAll();
   setInterval(loadAll, 30000);
+}
+
+async function execRemoveLiquidity(i, shares) {
+  if (!signer) { showToast("Connect wallet first!", "err"); return; }
+  try {
+    const freshProvider = new ethers.providers.Web3Provider(window.ethereum);
+    const freshSigner = freshProvider.getSigner();
+    const pool = new ethers.Contract(ADDR.pools[i], POOL_ABI, freshSigner);
+
+    // Approve LP shares
+    const lpAllowance = await pool.allowance(userAddr, ADDR.pools[i]);
+    if (lpAllowance.lt(shares)) {
+      showToast("Approving LP shares...", "info");
+      await (await pool.approve(ADDR.pools[i], ethers.constants.MaxUint256)).wait();
+    }
+
+    showToast(`Removing liquidity from ${PM[i].nA}/${PM[i].nB}... ⏳`, "info");
+    const tx = await pool.removeLiquidity(shares);
+    await tx.wait();
+
+    addTx(`Remove Liq ${PM[i].nA}/${PM[i].nB}`, tx.hash);
+    showToast(`✅ Liquidity removed!`, "ok");
+    await Promise.all([loadAll(), loadPortfolio()]);
+  } catch(e) {
+    showToast("Failed: " + (e.reason||e.message||"").slice(0,70), "err");
+  }
 }
 
 async function execRebalance(i) {

@@ -364,7 +364,7 @@ nav{position:relative;z-index:10;display:flex;align-items:center;justify-content
   </div>
 
   <!-- LAYOUT -->
-  <div class="layout">
+  <div class="layout" id="sectionPools">
 
     <!-- LEFT -->
     <div>
@@ -480,6 +480,80 @@ nav{position:relative;z-index:10;display:flex;align-items:center;justify-content
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- SWAP ONLY VIEW -->
+<div id="sectionSwap" style="display:none;max-width:480px;margin:0 auto;padding-bottom:20px">
+  <div class="card">
+    <div class="stabs">
+      <div class="stab on">Swap</div>
+      <div class="stab" onclick="setTab(0)">← Back to Pools</div>
+    </div>
+    <div class="sbody">
+      <div class="ibox">
+        <div class="itop">
+          <div class="ilbl">You Pay</div>
+          <div class="ibal">Bal: <b id="balIn2">—</b></div>
+        </div>
+        <div class="irow">
+          <input class="iamount" type="number" placeholder="0" id="amtIn2" oninput="syncSwap()">
+          <div class="tokpick" onclick="cycleToken2('in')">
+            <div class="tok t-amd" id="tokInIco2" style="width:20px;height:20px;font-size:7px">A</div>
+            <span class="tokpick-name" id="tokInName2">AMD</span>
+            <span class="tokpick-arrow">▾</span>
+          </div>
+        </div>
+      </div>
+      <div class="flip-btn" onclick="flipTokens2()">⇅</div>
+      <div class="ibox" style="margin-top:6px">
+        <div class="itop">
+          <div class="ilbl">You Receive</div>
+          <div class="ibal">Bal: <b id="balOut2">—</b></div>
+        </div>
+        <div class="irow">
+          <input class="iamount" type="number" placeholder="0" id="amtOut2" readonly style="color:var(--lime)">
+          <div class="tokpick" onclick="cycleToken2('out')">
+            <div class="tok t-tsla" id="tokOutIco2" style="width:20px;height:20px;font-size:7px">T</div>
+            <span class="tokpick-name" id="tokOutName2">TSLA</span>
+            <span class="tokpick-arrow">▾</span>
+          </div>
+        </div>
+      </div>
+      <div class="swap-info">
+        <div class="si-row"><span>Oracle Rate</span><b id="siRate2">—</b></div>
+        <div class="si-row"><span>Pool Ratio</span><b id="siPool2">—</b></div>
+        <div class="si-row"><span>Price Impact</span><b class="warn" id="siImpact2">—</b></div>
+        <div class="si-row"><span>Fee (0.3%)</span><b id="siFee2">—</b></div>
+        <div class="si-row"><span>Min Received</span><b class="lime" id="siMin2">—</b></div>
+      </div>
+      <div class="burn-box">
+        <span class="burn-lbl">🔥 QVR Burn Cost</span>
+        <span class="burn-val">1 QVR per swap</span>
+      </div>
+      <button class="swap-cta" onclick="execSwap()">Swap Stocks</button>
+    </div>
+  </div>
+</div>
+
+<!-- PORTFOLIO VIEW -->
+<div id="sectionPortfolio" style="display:none;padding-bottom:20px">
+  <div class="card">
+    <div class="ch">
+      <div class="ch-title">My LP Positions</div>
+      <div class="pill pill-dim" id="portPill">Connect wallet</div>
+    </div>
+    <div id="portRows">
+      <div class="tx-empty">Connect wallet to view your LP positions</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="ch"><div class="ch-title">$QVR Balance</div></div>
+    <div style="padding:24px 22px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;color:var(--lime);line-height:1" id="portQvr">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">$QVR in wallet</div>
+      <button class="swap-cta" style="margin-top:20px;max-width:200px" onclick="claimFaucet()">Claim 100 $QVR</button>
     </div>
   </div>
 </div>
@@ -762,11 +836,11 @@ async function connectWallet() {
   if (!window.ethereum) { showToast("Please install MetaMask!", "err"); return; }
   try {
     await window.ethereum.request({ method: "eth_requestAccounts" });
-    // Switch to Robinhood Chain (46630 = 0xB646)
+    // Switch to Robinhood Chain (46630 = 0xB626)
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xB646" }]
+        params: [{ chainId: "0xB626" }]
       });
     } catch(switchErr) {
       if (switchErr.code === 4902) {
@@ -1029,6 +1103,104 @@ function selectPool(i) {
 
 function setTab(i) {
   document.querySelectorAll(".ntab").forEach((el,j) => el.classList.toggle("on", i===j));
+  document.getElementById("sectionPools").style.display = i===0 ? "grid" : "none";
+  document.getElementById("sectionSwap").style.display = i===1 ? "block" : "none";
+  document.getElementById("sectionPortfolio").style.display = i===2 ? "block" : "none";
+  if (i===1) syncSwapFromMain();
+  if (i===2) loadPortfolio();
+}
+
+function syncSwapFromMain() {
+  // Sync token selection from main swap panel
+  document.getElementById("tokInName2").textContent = tokIn;
+  document.getElementById("tokOutName2").textContent = tokOut;
+  const v = document.getElementById("amtIn").value;
+  if (v) { document.getElementById("amtIn2").value = v; syncSwap(); }
+}
+
+function syncSwap() {
+  // Mirror swap calc to swap-only view
+  const amtIn = parseFloat(document.getElementById("amtIn2").value) || 0;
+  document.getElementById("amtIn").value = amtIn || "";
+  calcSwap();
+  // Copy results back
+  document.getElementById("amtOut2").value = document.getElementById("amtOut").value;
+  document.getElementById("siRate2").textContent = document.getElementById("siRate").textContent;
+  document.getElementById("siPool2").textContent = document.getElementById("siPool").textContent;
+  document.getElementById("siImpact2").textContent = document.getElementById("siImpact").textContent;
+  document.getElementById("siFee2").textContent = document.getElementById("siFee").textContent;
+  document.getElementById("siMin2").textContent = document.getElementById("siMin").textContent;
+  if (userAddr) {
+    document.getElementById("balIn2").textContent = document.getElementById("balIn").textContent;
+    document.getElementById("balOut2").textContent = document.getElementById("balOut").textContent;
+  }
+}
+
+function cycleToken2(side) {
+  cycleToken(side);
+  document.getElementById("tokInName2").textContent = tokIn;
+  document.getElementById("tokOutName2").textContent = tokOut;
+  syncSwap();
+}
+
+function flipTokens2() {
+  flipTokens();
+  document.getElementById("tokInName2").textContent = tokIn;
+  document.getElementById("tokOutName2").textContent = tokOut;
+  document.getElementById("amtIn2").value = document.getElementById("amtIn").value;
+  syncSwap();
+}
+
+async function loadPortfolio() {
+  if (!userAddr) {
+    document.getElementById("portRows").innerHTML = '<div class="tx-empty">Connect wallet to view your LP positions</div>';
+    return;
+  }
+  try {
+    const tok = new ethers.Contract(ADDR.token, TOKEN_ABI, provider);
+    const bal = await tok.balanceOf(userAddr);
+    document.getElementById("portQvr").textContent = parseFloat(ethers.utils.formatEther(bal)).toFixed(2);
+
+    let html = "";
+    let hasPositions = false;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const pool = new ethers.Contract(ADDR.pools[i], POOL_ABI, provider);
+        const lpToken = new ethers.Contract(ADDR.pools[i], ["function balanceOf(address) view returns (uint256)", "function totalSupply() view returns (uint256)"], provider);
+        const [lpBal, lpSupply, rA, rB] = await Promise.all([
+          lpToken.balanceOf(userAddr),
+          lpToken.totalSupply(),
+          pool.reserveA(),
+          pool.reserveB()
+        ]);
+        if (lpBal.gt(0)) {
+          hasPositions = true;
+          const share = parseFloat(ethers.utils.formatEther(lpBal)) / parseFloat(ethers.utils.formatEther(lpSupply));
+          const myA = (parseFloat(ethers.utils.formatEther(rA)) * share).toFixed(4);
+          const myB = (parseFloat(ethers.utils.formatEther(rB)) * share).toFixed(4);
+          const p = PM[i];
+          html += `
+            <div class="pool-row" style="grid-template-columns:180px 1fr 1fr 120px">
+              <div class="pair">
+                <div class="toks">
+                  <div class="tok ${p.cA}">${p.lA}</div>
+                  <div class="tok ${p.cB}">${p.lB}</div>
+                </div>
+                <div class="pair-info">
+                  <div class="pair-name">${p.nA}/${p.nB}</div>
+                  <div class="pair-addr">${(share*100).toFixed(2)}% of pool</div>
+                </div>
+              </div>
+              <div style="font-size:12px">${myA} ${p.nA}</div>
+              <div style="font-size:12px">${myB} ${p.nB}</div>
+              <button class="add-liq-btn" onclick="openLiq(${i});setTab(0)">+ Add More</button>
+            </div>`;
+        }
+      } catch(e) {}
+    }
+    document.getElementById("portRows").innerHTML = hasPositions ? html : '<div class="tx-empty">No LP positions yet — add liquidity to a pool to start earning fees</div>';
+    document.getElementById("portPill").textContent = hasPositions ? "Active" : "No positions";
+  } catch(e) { console.error("loadPortfolio:", e); }
 }
 function setSwapTab(i) {
   document.querySelectorAll(".stab").forEach((el,j) => el.classList.toggle("on", i===j));

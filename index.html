@@ -663,6 +663,11 @@ let txHistory = [];
 // BUILD UI
 // ═══════════════════════════════════
 function buildPoolRows() {
+  // Restore tx history from session
+  try {
+    const saved = sessionStorage.getItem("quiver_tx");
+    if (saved) { txHistory = JSON.parse(saved); renderTxLog(); }
+  } catch(e) {}
   document.getElementById("poolRows").innerHTML = PM.map((p, i) => `
     <div class="pool-row${i===0?' sel':''}" id="prow-${i}" onclick="selectPool(${i})">
       <div class="pair">
@@ -681,7 +686,10 @@ function buildPoolRows() {
       </div>
       <div class="pool-ratio" id="pr-pool-${i}">—</div>
       <div class="pool-status" id="pr-status-${i}"><span class="pill pill-dim">Loading</span></div>
-      <button class="add-liq-btn" onclick="event.stopPropagation();openLiq(${i})">+ Add</button>
+      <div style="display:flex;gap:6px">
+        <button class="add-liq-btn" onclick="event.stopPropagation();openLiq(${i})">+ Add</button>
+        <button class="add-liq-btn" id="rebal-${i}" onclick="event.stopPropagation();execRebalance(${i})" style="border-color:rgba(245,158,11,.3);color:#f59e0b;background:rgba(245,158,11,.06)">⚡</button>
+      </div>
     </div>
   `).join("");
 }
@@ -706,7 +714,10 @@ async function loadTokenStats() {
     ]);
 
     const supN = parseFloat(ethers.utils.formatEther(supply)).toFixed(0);
-    const burnN = parseFloat(ethers.utils.formatEther(burned)).toFixed(2);
+    // Check dead address balance too — some burns go directly there
+    const deadBal = await tok.balanceOf("0x000000000000000000000000000000000000dEaD");
+    const burnedTotal = burned.add(deadBal);
+    const burnN = parseFloat(ethers.utils.formatEther(burnedTotal)).toFixed(2);
     const users = Math.max(parseInt(fUsers), parseInt(facUsers));
     const circ = parseInt(supN).toLocaleString();
     const burnFmt = parseFloat(burnN).toLocaleString();
@@ -928,19 +939,29 @@ function updateSwapCalc() {
     const displayRatio = swapAtoB ? pd.oRatio : (1 / pd.oRatio);
     set("siRate", `1 ${tokIn} = ${displayRatio.toFixed(4)} ${tokOut}`);
   }
-  set("siPool", `1:${pd.pRatio.toFixed(4)}`);
+
+  // Pool ratio
+  if (pd.pRatio !== null) {
+    const displayPool = swapAtoB ? pd.pRatio : (1 / pd.pRatio);
+    set("siPool", `1 ${tokIn} = ${displayPool.toFixed(4)} ${tokOut}`);
+  }
 
   if (!amtIn) return;
 
   const fee = amtIn * 0.003;
   const amtInEff = amtIn - fee;
-  // x*y=k formula
+
+  // x*y=k — swap direction aware
+  // rA = reserveA (tokenA in canonical order), rB = reserveB
   const resIn = swapAtoB
     ? parseFloat(ethers.utils.formatEther(pd.rA))
     : parseFloat(ethers.utils.formatEther(pd.rB));
   const resOut = swapAtoB
     ? parseFloat(ethers.utils.formatEther(pd.rB))
     : parseFloat(ethers.utils.formatEther(pd.rA));
+
+  // Guard against empty reserves
+  if (!resIn || !resOut || resIn === 0 || resOut === 0) return;
   const amtOut = (amtInEff * resOut) / (resIn + amtInEff);
 
   document.getElementById("amtOut").value = amtOut.toFixed(6);
@@ -998,13 +1019,13 @@ async function execSwap() {
     const qvrAllow = await tok.allowance(userAddr, ADDR.pools[selPool]);
     if (qvrAllow.lt(ethers.utils.parseEther("1"))) {
       showToast("Approving QVR...", "info");
-      await (await tok.approve(ADDR.pools[selPool], ethers.utils.parseEther("1000"))).wait();
+      await (await tok.approve(ADDR.pools[selPool], ethers.constants.MaxUint256)).wait();
     }
     // Stock token approval
     const stockAllow = await stockTok.allowance(userAddr, ADDR.pools[selPool]);
     if (stockAllow.lt(ethers.utils.parseEther(amtIn))) {
-      showToast("Approving token...", "info");
-      await (await stockTok.approve(ADDR.pools[selPool], ethers.utils.parseEther("100000"))).wait();
+      showToast("Approving stock token...", "info");
+      await (await stockTok.approve(ADDR.pools[selPool], ethers.constants.MaxUint256)).wait();
     }
 
     showToast("Swapping... ⏳", "info");
@@ -1065,14 +1086,20 @@ async function execAddLiquidity() {
     const qvrAllow = await tok.allowance(userAddr, ADDR.pools[selPool]);
     if (qvrAllow.lt(ethers.utils.parseEther("5"))) {
       showToast("Approving QVR...", "info");
-      await (await tok.approve(ADDR.pools[selPool], ethers.utils.parseEther("1000"))).wait();
+      await (await tok.approve(ADDR.pools[selPool], ethers.constants.MaxUint256)).wait();
     }
-    // Token approvals
+    // Token approvals — MaxUint256 so user never needs to approve again
     const tokA = new ethers.Contract(tA, TOKEN_ABI, freshSigner);
     const tokB = new ethers.Contract(tB, TOKEN_ABI, freshSigner);
-    showToast("Approving tokens...", "info");
-    await (await tokA.approve(ADDR.pools[selPool], ethers.utils.parseEther(amtA))).wait();
-    await (await tokB.approve(ADDR.pools[selPool], ethers.utils.parseEther(amtB))).wait();
+    const [allowA, allowB] = await Promise.all([tokA.allowance(userAddr, ADDR.pools[selPool]), tokB.allowance(userAddr, ADDR.pools[selPool])]);
+    if (allowA.lt(ethers.utils.parseEther(amtA))) {
+      showToast("Approving token A...", "info");
+      await (await tokA.approve(ADDR.pools[selPool], ethers.constants.MaxUint256)).wait();
+    }
+    if (allowB.lt(ethers.utils.parseEther(amtB))) {
+      showToast("Approving token B...", "info");
+      await (await tokB.approve(ADDR.pools[selPool], ethers.constants.MaxUint256)).wait();
+    }
 
     showToast("Adding liquidity... ⏳", "info");
     const tx = await pool.addLiquidity(
@@ -1210,7 +1237,11 @@ function setSwapTab(i) {
 function addTx(type, hash) {
   txHistory.unshift({ type, hash, time: new Date().toLocaleTimeString() });
   if (txHistory.length > 8) txHistory.pop();
+  try { sessionStorage.setItem("quiver_tx", JSON.stringify(txHistory)); } catch(e) {}
   set("txPill", txHistory.length + " txs");
+  renderTxLog();
+}
+function renderTxLog() {
   document.getElementById("txLog").innerHTML = txHistory.length
     ? txHistory.map(tx => `
       <div class="tx-row">
@@ -1242,6 +1273,33 @@ async function init() {
   buildPoolRows();
   await loadAll();
   setInterval(loadAll, 30000);
+}
+
+async function execRebalance(i) {
+  if (!signer) { showToast("Connect wallet first!", "err"); return; }
+  const pd = poolCache[i];
+  if (!pd) { showToast("Pool data not loaded yet", "err"); return; }
+  if (!pd.imb) { showToast("Pool is already balanced ✓", "info"); return; }
+  try {
+    const freshProvider = new ethers.providers.Web3Provider(window.ethereum);
+    const freshSigner = freshProvider.getSigner();
+    const pool = new ethers.Contract(ADDR.pools[i], POOL_ABI, freshSigner);
+    showToast(`Rebalancing ${PM[i].nA}/${PM[i].nB}... ⏳`, "info");
+    const tx = await pool.rebalance();
+    await tx.wait();
+    addTx(`Rebalance ${PM[i].nA}/${PM[i].nB} ⚡`, tx.hash);
+    showToast(`✅ Pool rebalanced! QVR reward sent to your wallet.`, "ok");
+    await loadAll();
+  } catch(e) {
+    const msg = e.reason || e.message || "";
+    if (msg.includes("No reward")) {
+      showToast("Pool needs swaps first to accumulate QVR rewards", "err");
+    } else if (msg.includes("balanced")) {
+      showToast("Pool is already balanced ✓", "info");
+    } else {
+      showToast("Failed: " + msg.slice(0,60), "err");
+    }
+  }
 }
 
 window.addEventListener("load", init);
